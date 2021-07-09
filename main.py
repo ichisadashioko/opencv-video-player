@@ -5,8 +5,26 @@ import cv2
 import sys
 import threading
 
+
+def parse_secs(secs: float):
+    hours = 0
+    mins = 0
+    if secs >= 3600:
+        hours = int(secs / 3600)
+        secs = secs % 3600
+    if secs >= 60:
+        mins = int(secs / 60)
+        secs = secs % 60
+
+    return {
+        'hours': hours,
+        'mins': mins,
+        'seconds': secs
+    }
+
 # create a video player with opencv frame by frame
-# always use single quote ' instead if ' for string
+# always use single quote ' instead of " for string
+
 
 parser = argparse.ArgumentParser()
 
@@ -25,12 +43,21 @@ if not video_capture.isOpened():
     video_capture.release()
     sys.exit(1)
 
-NUMBER_OF_FRAMES = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+NUMBER_OF_FRAMES = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT)) - 1
+VIDEO_FPS = video_capture.get(cv2.CAP_PROP_FPS)
+LOOP_WAIT_TIME_MS = int(1000 / VIDEO_FPS)
 current_frame_index = 0
+next_frame_index = 0
 pausing = False
 needed_update_after_slider_scrolled = False
 # flag for indicating that the trackbar was set by code but not the user
 slider_scrolled_by_code = False
+
+# print video info
+print('Video Info')
+print('Number of frames:', NUMBER_OF_FRAMES)
+print('Frames per second:', VIDEO_FPS)
+print('Loop wait time:', LOOP_WAIT_TIME_MS)
 
 WINDOW_NAME = 'video'
 # give slider a name to use in the window
@@ -40,23 +67,22 @@ SLIDER_NAME = 'frame_index_slider'
 cv2.namedWindow(WINDOW_NAME)
 
 
-def normalize_frame_index(index, max):
+def normalize_frame_index(index: int, max: int):
     index = index % max
-    index = index if index >= 0 else 0
-    index = index if index < max else max - 1
     return index
 
 
 # create a new thread that will update the flag after a timeout period. If the trackbar is updated during the timeout, the thread will not update the flag.
 latest_thread_creation_time = 0
-update_flag_delay_ms = 50
+UPDATE_TRACKBAR_SEEKING_FLAG_MS = 50
+UPDATE_TRACKBAR_SEEKING_FLAG_SECS = UPDATE_TRACKBAR_SEEKING_FLAG_MS / 1000
 
 
 def update_thread_fn():
     global latest_thread_creation_time, needed_update_after_slider_scrolled
     created_time = time.perf_counter()
     latest_thread_creation_time = created_time
-    time.sleep(update_flag_delay_ms / 1000)
+    time.sleep(UPDATE_TRACKBAR_SEEKING_FLAG_SECS)
     if created_time == latest_thread_creation_time:
         frame_index = int(cv2.getTrackbarPos(SLIDER_NAME, WINDOW_NAME))
         frame_index = normalize_frame_index(frame_index, NUMBER_OF_FRAMES)
@@ -114,7 +140,8 @@ while True:
 
         if not pausing:
             # stop reading if the final frame is reached
-            if not (current_frame_index >= NUMBER_OF_FRAMES):
+            next_frame_index = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+            if next_frame_index < NUMBER_OF_FRAMES:
                 ret, frame = video_capture.read()
 
                 if not ret:
@@ -123,8 +150,7 @@ while True:
                     print('video_capture.get(cv2.CAP_PROP_POS_FRAMES)', video_capture.get(cv2.CAP_PROP_POS_FRAMES))
                     raise IOError('Failed to read frame!')
 
-                current_frame_index = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
-                current_frame_index = normalize_frame_index(current_frame_index, int(NUMBER_OF_FRAMES))
+                current_frame_index = next_frame_index
                 last_frame = frame
             update_trackbar_state(current_frame_index)
         else:
@@ -137,8 +163,7 @@ while True:
                 frame = last_frame
 
         cv2.imshow(WINDOW_NAME, frame)
-        key = cv2.waitKey(30)
-        key = key & 0xFF
+        key = cv2.waitKey(LOOP_WAIT_TIME_MS) & 0xFF
 
         # handle keyboard events
 
@@ -150,6 +175,7 @@ while True:
             break
         # if '+' or '>' key is pressed, increment the frame index and pause the video
         elif key == 43 or key == 64:
+            # TODO fix this, it is not working
             # Next frame feature
             # If the video is paused, increase the frame by 1 and store the frame in the last_frame for displaying on the next iteration.
             # If the final frame is reached, do nothing.
@@ -209,12 +235,29 @@ while True:
 
             pausing = True
         # if 'p' is pressed print the current_frame_index and convert it to the timestamp.
-        elif key == 112:
-            print(current_frame_index)
+        elif key == ord('p'):
+            next_frame_index = video_capture.get(cv2.CAP_PROP_POS_FRAMES)
+            current_frame_index = next_frame_index - 1
+            if current_frame_index < 0:
+                # TODO reason about opencv video frame indexing
+                current_frame_index = 0
+
+            print('frame index:', current_frame_index, 'frame count:', NUMBER_OF_FRAMES)
+            print('loop_counter:', loop_counter)
+            print('video_capture.get(cv2.CAP_PROP_POS_FRAMES)', video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+
             # print the timestamp in HH:mm:ss.SSS format
-            print(time.strftime('%H:%M:%S.%f', time.gmtime(current_frame_index / NUMBER_OF_FRAMES)))
+            video_timestamp_secs = current_frame_index / VIDEO_FPS
+            parsed_timestamp_dict = parse_secs(video_timestamp_secs)
+            num_hours = parsed_timestamp_dict['hours']
+            num_mins = parsed_timestamp_dict['mins']
+            num_secs = parsed_timestamp_dict['seconds']
+            num_secs_integer_part = int(num_secs)
+            num_secs_fractional_part = (num_secs - num_secs_integer_part)
+            print(f'{num_hours}:{num_mins:02}:{num_secs_integer_part:02}.{int(num_secs_fractional_part*1000):03}')
     except:
         # print debug info and re-raise exception
         print('frame index:', current_frame_index, 'frame count:', NUMBER_OF_FRAMES)
         print('loop_counter:', loop_counter)
+        print('video_capture.get(cv2.CAP_PROP_POS_FRAMES)', video_capture.get(cv2.CAP_PROP_POS_FRAMES))
         raise
