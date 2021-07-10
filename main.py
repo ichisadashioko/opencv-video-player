@@ -174,7 +174,7 @@ while True:
         elif key == 27 or key == ord('q'):
             break
         # if '+' or '>' key is pressed, increment the frame index and pause the video
-        elif key == 43 or key == 64:
+        elif key == 43 or key == 64 or key == 83:
             # TODO fix this, it is not working
             # Next frame feature
             # If the video is paused, increase the frame by 1 and store the frame in the last_frame for displaying on the next iteration.
@@ -182,10 +182,9 @@ while True:
             # If the video is playing, pause the video and display the next frame.
             # If the current frame is the final frame, only pause the video.
 
-            if current_frame_index < (NUMBER_OF_FRAMES-1):
-                current_frame_index += 1
-                # normalize frame index to account for large frames
-                current_frame_index = normalize_frame_index(current_frame_index, int(NUMBER_OF_FRAMES))
+            next_frame_index = int(video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+            if next_frame_index < NUMBER_OF_FRAMES:
+                current_frame_index = next_frame_index
                 video_capture.set(cv2.CAP_PROP_POS_FRAMES, current_frame_index)
                 ret, frame = video_capture.read()
 
@@ -201,7 +200,7 @@ while True:
             pausing = True
             update_trackbar_state(current_frame_index)
         # if '-' or '<' key is pressed, decrement the frame index and pause the video
-        elif key == ord('-') or key == ord('<'):
+        elif key == ord('-') or key == ord('<') or key == 81:
             # Previous frame feature
             # If the video is paused, decrease the frame by 1 and store the frame in the last_frame for displaying on the next iteration.
             # If the current frame is the first frame, do nothing.
@@ -255,6 +254,10 @@ while True:
             num_secs_integer_part = int(num_secs)
             num_secs_fractional_part = (num_secs - num_secs_integer_part)
             print(f'{num_hours}:{num_mins:02}:{num_secs_integer_part:02}.{int(num_secs_fractional_part*1000):03}')
+        elif key == 255:
+            pass
+        else:
+            print(f'Unknown key {key} pressed')
     except:
         # print debug info and re-raise exception
         print('frame index:', current_frame_index, 'frame count:', NUMBER_OF_FRAMES)
