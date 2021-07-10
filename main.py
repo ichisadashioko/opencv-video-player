@@ -174,8 +174,7 @@ while True:
         elif key == 27 or key == ord('q'):
             break
         # if '+' or '>' key is pressed, increment the frame index and pause the video
-        elif key == 43 or key == 64 or key == 83:
-            # TODO fix this, it is not working
+        elif key == ord('+') or key == ord('<') or key == 83:
             # Next frame feature
             # If the video is paused, increase the frame by 1 and store the frame in the last_frame for displaying on the next iteration.
             # If the final frame is reached, do nothing.
